@@ -17,9 +17,9 @@ library(genridge)
 ## Part 1: EDA
 
 ```{r}
-data <- read.csv("wanshouxigong_20130301-20170228.csv")
+data <- read.csv("wanshouxigong_20130301-20170228.csv") ## read the data
 
-wd <- function(x){
+wd <- function(x){ ## convert wd into "North or not"
   if(x %in% c("N", "NE", "NNE", "NNW", "NW", "WNW")){
     return("Yes")
   }
@@ -45,6 +45,7 @@ lag <- data[c(6, 19:28)] %>% na.omit()
 lag_gather <- lag %>%
   gather(key = "varname", value = "value", lag1, lag2, lag3, lag4)
 
+# Figure 1: First 4 lag variables
 ggplot(data = lag_gather) +
   geom_point(aes(x = PM2.5, y = value), size = 1) +
   facet_wrap(~ varname) +
@@ -70,6 +71,7 @@ corr_lag <- function(x){
   return(cor(tmp$lag, tmp$now))
 }
 
+# Figure 2: Lag length and correlation
 ggplot(data = data.frame(num = 1:10, corr = sapply(1:10, corr_lag))) +
   geom_line(aes(x = num, y = corr), size = 1) +
   geom_point(aes(x = num, y = corr), size = 2) +
@@ -87,13 +89,6 @@ data1 <- read.csv("wanshouxigong_20130301-20170228.csv") %>%
 ```
 
 ```{r}
-season <- function(x){
-  if(x <= 5 & x >= 3){return("春")}
-  else if(x <= 8 & x >= 6){return("夏")}
-  else if(x <= 11 & x >= 9){return("秋")}
-  else{return("冬")}
-}
-
 level <- function(x){
   if(x < 35){return(1)}
   else if(x < 75){return(2)}
@@ -102,12 +97,12 @@ level <- function(x){
   else if(x < 250){return(5)}
   else{return(6)}
 }
-
-data1$season = factor(sapply(data1$month, season), levels = c("春", "夏", "秋", "冬"))
+# create new level
 data1$level = factor(sapply(data1$PM2.5, level), levels = c(6, 5, 4, 3, 2, 1))
 ```
 
 ```{r}
+#Figure 3: Wind speed and PM2.5
 ggplot(data = data1) +
   geom_bar(aes(x = wd, group = level, fill = level), position = "fill") +
   scale_fill_manual(breaks = c(1, 4, 2, 5, 3, 6), 
@@ -146,6 +141,7 @@ climate.gather.discrete <- climate.gather %>%
 labels <- c(DEWP = "Low Temp", PRES = "Pressure", RAIN = "Rainfall",
             TEMP = "High Temp", north = "WD (north or not)", WSPM = "Wind Speed")
 
+# Figure 4: EDA for all climate predictors
 ggplot(data = climate.gather) +
   geom_point(aes(x = value, y = PM2.5) , data = climate.gather.continuous, size = 0.7) +
   geom_boxplot(aes(x = value, y = PM2.5) , data = climate.gather.discrete) +
@@ -164,24 +160,11 @@ ggplot(data = climate.gather) +
 ```{r}
 train <- lag[1:30000, ]
 test <- lag[30001:nrow(lag), ]
-feb18.2017 <- data[34801:34824, ]
+feb18.2017 <- data[34801:34824, ] ## extract specific day for testing
 ```
 
 ```{r}
 full.model <- lm(PM2.5 ~ ., data = train)
-summary(full.model)
-```
-
-```{r}
-# confidence interval for the coefficients
-round(confint(full.model), 4)
-```
-
-
-```{r}
-## diagnose plot
-par(mfrow = c(2, 2))
-plot(full.model)
 ```
 
 ```{r}
@@ -209,6 +192,7 @@ conf$hour <- 1:24 - 0.5
 ```
 
 ```{r}
+# Figure 6: Ridge regression prediction and CI on Feb 2, 2017
 ggplot(data = conf %>% gather(key = "key", value = "value", true, fit), aes(x = hour)) +
   geom_point(aes(y = value, color = key), size = 2) +
   geom_line(data = conf, aes(x = hour, y = fit), color = "red", size = 1) +
@@ -259,6 +243,8 @@ grid <- 10 ^ seq(-0.5, -1.5, length = 100)
 ridge.mod <- glmnet(x.train, y.train, alpha = 0, lambda = grid)
 pred <- predict.glmnet(ridge.mod, newx = x.test, s = grid)
 RMSE <- apply(pred, 2, rmse, y.test)
+
+# Figure 5: CV for ridge regression
 ggplot(data = data.frame(lambda = grid, rmse = RMSE)) +
   geom_line(aes(x = log(lambda), y = rmse), size = 1.5) +
   geom_vline(aes(xintercept = log(grid[RMSE == min(RMSE)])), size = 1, colour = "red") +
